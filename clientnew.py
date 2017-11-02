@@ -18,7 +18,7 @@ class DistributedSnapshot:
         amount = randint(0, 50)
         probability = random()
         print "Probability value is ", probability
-	if probability <= 0.2:
+        if probability <= 0.2:
             connection.send(json.dumps({"amount":amount}))
             print "Client 1 sending ", amount , "to client socket ", connection
             self.money -= amount
@@ -33,10 +33,11 @@ class DistributedSnapshot:
         print "Current balance " , self.money
 
     def snapshot_algorithm(self):
-        x=raw_input("Do you want to take a snapshot? Enter Y or N:")
-        if x == 'Y':
-            self.snapshot_variable.append(self.money)
-            print self.snapshot_variable
+        while True:
+            x=raw_input("Do you want to take a snapshot? Enter Y or N:")
+            if x == 'Y':
+                self.snapshot_variable.append(self.money)
+                print self.snapshot_variable
 	
 dsObject = DistributedSnapshot()
 
