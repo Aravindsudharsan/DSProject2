@@ -14,13 +14,13 @@ class DistributedSnapshot:
     money = 1000
     snapshot_variable=[]
 
-    def transfer_money(self,connection):
+    def transfer_money(self,connection,id1,port):
         amount = randint(0, 50)
         probability = random()
         print "Probability value is ", probability
         if probability <= 0.2:
             connection.send(json.dumps({"amount":amount}))
-            print "Client 1 sending ", amount , "to client socket ", connection
+            print "Client with id", str(id1),  " sending amount", str(amount) , "to client with socket ",str(port)
             self.money -= amount
             print "Current balance ", self.money
 
@@ -29,7 +29,7 @@ class DistributedSnapshot:
     def receive_money(self,data):
         amount = data["amount"]
         self.money += amount
-        print "Client 1 receiving " , amount
+        print "Client received  the amount", str(amount)
         print "Current balance " , self.money
 
     def snapshot_algorithm(self):
@@ -38,12 +38,12 @@ class DistributedSnapshot:
             if x == 'Y':
                 self.snapshot_variable.append(self.money)
                 print self.snapshot_variable
-	
+
 dsObject = DistributedSnapshot()
 
 id1=raw_input("Enter the process id:")
 
-def client_thread(ip,port):
+def client_thread(ip,port,id1):
     tcpClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     time.sleep(delay)
     tcpClient.connect((ip,port))
@@ -51,7 +51,7 @@ def client_thread(ip,port):
     print "[+] New server socket thread started for " + ip + ":" + str(port)
     while 1:
         time.sleep(10)
-        dsObject.transfer_money(tcpClient)
+        dsObject.transfer_money(tcpClient,id1,port)
 
 
 def server_thread(conn):
@@ -69,7 +69,7 @@ with open("config.json", "r") as configFile:
         print val["port"]
         if int(id1) != idx:
             print idx
-            start_new_thread(client_thread,(val["ip"],int(val["port"])))
+            start_new_thread(client_thread,(val["ip"],int(val["port"]),int(id1)))
 
 
 print config["client_details"][int(id1)]["ip"]
@@ -79,7 +79,7 @@ print config["client_details"][int(id1)]["port"]
 #server part
 tcpServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 tcpServer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
-tcpServer.bind((config["client_details"][int(id1)]["ip"],int(config["client_details"][int(id1)]["port"]))) 
+tcpServer.bind((config["client_details"][int(id1)]["ip"],int(config["client_details"][int(id1)]["port"])))
 
 c=0
 while True:
@@ -90,4 +90,5 @@ while True:
     c=c+1
     if c==1:
         start_new_thread(dsObject.snapshot_algorithm,())
+
 
