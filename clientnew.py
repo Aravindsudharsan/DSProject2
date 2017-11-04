@@ -62,6 +62,17 @@ class DistributedSnapshot:
                 }
                 ))
 
+    def	local_state_process(self):
+	self.local_state=self.money
+	print "local saved state is", self.local_state
+	for client in array_client:
+            client.send(json.dumps(
+                {
+                    'type':"MARKER",
+                    'snapshot_id': self.snapshot_id
+                }
+                ))
+	
 dsObject = DistributedSnapshot()
 
 
@@ -102,6 +113,7 @@ def server_thread(conn):
                     else:
                         dsObject.channels_state[k] = [data]
         elif parsed_data['type'] == 'MARKER':
+            #if snapshot_id != received_snapshot_id:		
             print "Marker received from ", socket_name_dict[conn]
             received_snapshot_id=parsed_data['snapshot_id']
             if received_snapshot_id in dsObject.seen_snapshot_ids:
@@ -117,8 +129,9 @@ def server_thread(conn):
             else:
                 #receiving marker for first time from initiator
                 dsObject.seen_snapshot_ids.append(received_snapshot_id)
-                # 1 here it should record its local state
-                # 2 send markers on all outgoing channels
+                #  record its local state
+		dsObject.local_state_process()
+	
                 dsObject.record_channel_flag[received_snapshot_id]=1
 
 
@@ -154,9 +167,3 @@ start_new_thread(get_input_from_user,())
 while True:
     conn, addr = tcpServer.accept()
     start_new_thread(server_thread,(conn,))
-
-
-
-
-
-
