@@ -72,6 +72,7 @@ class DistributedSnapshot:
                     'snapshot_id': self.snapshot_id
                 }
                 ))
+	  	
 	
 dsObject = DistributedSnapshot()
 
@@ -101,9 +102,11 @@ def server_thread(conn):
         parsed_data = json.loads(data)
 
         if parsed_data['type'] == 'CON':
+	    print socket_name_dict	
             socket_name_dict[conn]= parsed_data['name']
         elif parsed_data['type'] == 'TRANSFER':
             dsObject.receive_money(json.loads(data),conn)
+	    print dsObject.record_channel_flag	
             for k,v in dsObject.record_channel_flag.iteritems():
                 if v == 1:
                     if k in stop_record and stop_record[k] == 1:
@@ -112,14 +115,16 @@ def server_thread(conn):
                         dsObject.channels_state[k]+=[data]
                     else:
                         dsObject.channels_state[k] = [data]
-        elif parsed_data['type'] == 'MARKER':
-            #if snapshot_id != received_snapshot_id:		
+        elif parsed_data['type'] == 'MARKER':		
             print "Marker received from ", socket_name_dict[conn]
             received_snapshot_id=parsed_data['snapshot_id']
-            if received_snapshot_id in dsObject.seen_snapshot_ids:
+	    if received_snapshot_id in dsObject.seen_snapshot_ids:
                 #receiving marker from other input channels
-                if dsObject.snapshot_marker_tracker[received_snapshot_id]:
-                    if dsObject.snapshot_marker_tracker[received_snapshot_id] == 3: #3/2 --- CHECK
+		print dsObject.snapshot_marker_tracker
+                #if dsObject.snapshot_marker_tracker[received_snapshot_id]:
+		if 'received_snapshot_id' in dsObject.snapshot_marker_tracker:	
+                    #if dsObject.snapshot_marker_tracker[received_snapshot_id] == 3: #3/2 --- CHECK
+		    if 'received_snapshot_id' in dsObject.snapshot_marker_tracker==3:	
                         print "End of snapshot "
                     else:
                         stop_record[received_snapshot_id]=1
@@ -131,7 +136,7 @@ def server_thread(conn):
                 dsObject.seen_snapshot_ids.append(received_snapshot_id)
                 #  record its local state
 		dsObject.local_state_process()
-	
+                # 2 send markers on all outgoing channels
                 dsObject.record_channel_flag[received_snapshot_id]=1
 
 
