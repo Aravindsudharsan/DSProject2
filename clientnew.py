@@ -7,6 +7,7 @@ from random import randint
 from random import random
 import sys
 import select
+import re
 
 delay = 10
 array_client = []
@@ -80,8 +81,8 @@ def client_thread(ip, port, sendername, receivername):
         dsObject.transfer_money(toClient)
 
 
-def send_marker_all_outgoing(conn):
-    print "should write code for this"
+#def send_marker_all_outgoing(conn):
+   # print "should write code for this"
 
 
 def server_thread(conn):
@@ -89,56 +90,63 @@ def server_thread(conn):
     stop_record = {}
     while (1):
         data = conn.recv(2048)
-        parsed_data = json.loads(data)
+        data=re.split('(\{.*?\})(?= *\{)', data)
+        #parsed_data = json.loads(data)
+        #print data
+        for message in data:
+            if message == '\n':
+                continue
+            parsed_data = json.loads(message)
+            if 'name' in parsed_data:
+                print "checking for message", message, " from ",parsed_data['name']
+        #print parsed_data
+            if parsed_data['type'] == 'CON':
+                socket_name_dict[conn] = parsed_data['name']
+            elif parsed_data['type'] == 'TRANSFER':
+                dsObject.receive_money(json.loads(message), conn)
+                for k, v in dsObject.record_channel_flag.iteritems():
+                    if v == 1:
+                        if k in stop_record and stop_record[k] == 1:
+                            print "Have stopped recording "
+                        elif k in dsObject.channels_state:
+                            dsObject.channels_state[k] += [message]
+                            print "Adding intermediate channel state to list of channel states "
+                            print dsObject.channels_state
+                        else:
+                            dsObject.channels_state[k] = [message]
+                            print "Adding first channel state to list of channel states ",dsObject.channels_state
+            elif parsed_data['type'] == 'MARKER':
+                time.sleep(10)
+                print "Marker received from ", socket_name_dict[conn]
+                print 'Connection object is ***', conn
+                received_snapshot_id = parsed_data['snapshot_id']
+                if received_snapshot_id in dsObject.seen_snapshot_ids:
+                    print "Received snapshot id is in seen snapshot ids"
+        # receiving marker from other input channels
+                    if received_snapshot_id in dsObject.snapshot_marker_tracker:
+        #3/2 --- CHECK
+                        print "Value of snapshot marker tracker ", dsObject.snapshot_marker_tracker[received_snapshot_id]
 
-        if parsed_data['type'] == 'CON':
-            socket_name_dict[conn] = parsed_data['name']
-        elif parsed_data['type'] == 'TRANSFER':
-            dsObject.receive_money(json.loads(data), conn)
-            for k, v in dsObject.record_channel_flag.iteritems():
-                if v == 1:
-                    if k in stop_record and stop_record[k] == 1:
-                        print "Have stopped recording "
-                    elif k in dsObject.channels_state:
-                        dsObject.channels_state[k] += [data]
-                        print "Adding intermediate channel state to list of channel states "
-                        print dsObject.channels_state
+                        if dsObject.snapshot_marker_tracker[received_snapshot_id] == 2:
+                            print "End of snapshot",received_snapshot_id
+                            print "local state of the process is",dsObject.local_state
+                            print " channel state of the process is",dsObject.channels_state
+
+                        else:
+                            print "Marker received from intermediate channel -- stopping recording for this channel",socket_name_dict[conn]
+                            stop_record[received_snapshot_id] = 1
+                            dsObject.snapshot_marker_tracker[received_snapshot_id] += 1
                     else:
-                        dsObject.channels_state[k] = [data]
-                        print "Adding first channel state to list of channel states "
-                        dsObject.channels_state
-        elif parsed_data['type'] == 'MARKER':
-            time.sleep(5)
-            print "Marker received from ", socket_name_dict[conn]
-            print 'Connection object is ***', conn
-            received_snapshot_id = parsed_data['snapshot_id']
-            if received_snapshot_id in dsObject.seen_snapshot_ids:
-                print "Received snapshot id is in seen snapshot ids"
-                # receiving marker from other input channels
-                if received_snapshot_id in dsObject.snapshot_marker_tracker:
-                     #3/2 --- CHECK
-                    print "Value of snapshot marker tracker ", dsObject.snapshot_marker_tracker[received_snapshot_id]
-
-                    if dsObject.snapshot_marker_tracker[received_snapshot_id] == 2:
-                        print "End of snapshot --- "
-                        print "local state of the process is",dsObject.local_state
-                        print " channel state of the process is",dsObject.channels_state
-
-                    else:
-                        print "Marker received from intermediate channel -- stopping recording for this channel",socket_name_dict[conn]
-                        stop_record[received_snapshot_id] = 1
-                        dsObject.snapshot_marker_tracker[received_snapshot_id] += 1;
+                        dsObject.snapshot_marker_tracker[received_snapshot_id] = 1
                 else:
+        # receiving marker for first time from initiator
+                    print "Received snapshot id is NOT in seen snapshot ids, SEEING FOR FIRST TIME"
+                    dsObject.seen_snapshot_ids.append(received_snapshot_id)
                     dsObject.snapshot_marker_tracker[received_snapshot_id] = 1
-            else:
-                # receiving marker for first time from initiator
-                print "Received snapshot id is NOT in seen snapshot ids, SEEING FOR FIRST TIME"
-                dsObject.seen_snapshot_ids.append(received_snapshot_id)
-                dsObject.snapshot_marker_tracker[received_snapshot_id] = 1
-                #  record its local state
-                dsObject.local_state_process(received_snapshot_id)
-                # 2 send markers on all outgoing channels
-                dsObject.record_channel_flag[received_snapshot_id] = 1
+        #  record its local state
+                    dsObject.local_state_process(received_snapshot_id)
+        # 2 send markers on all outgoing channels
+                    dsObject.record_channel_flag[received_snapshot_id] = 1
 
 
 def get_input_from_user():
