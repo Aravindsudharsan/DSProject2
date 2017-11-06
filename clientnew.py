@@ -30,6 +30,7 @@ class DistributedSnapshot:
         probability = random()
         # print "Probability value is ", probability
         if probability <= 0.2:
+            #time.sleep(10)
             connection.send(json.dumps({"amount": amount, "type": "TRANSFER"}))
             print self.name, "sending $$", str(amount), " to ", socket_name_dict[connection]
             self.money -= amount
@@ -50,6 +51,7 @@ class DistributedSnapshot:
         self.seen_snapshot_ids.append(self.snapshot_id)
         print "CHECKING SEEN SNAPSHOT IDS", self.seen_snapshot_ids
         for client in array_client:
+            #time.sleep(25)
             #print "Sending marker in ALGORITHM TO ", client, "with snapshot id ", self.snapshot_id
             client.send(json.dumps({'type': "MARKER", 'snapshot_id': self.snapshot_id}))
 
@@ -57,6 +59,7 @@ class DistributedSnapshot:
         self.local_state = self.money
         print "local saved state is", self.local_state
         for client in array_client:
+            #time.sleep(25)
             #print "Sending marker AFTER SAVING LOCAL STATE TO ", client, "with snapshot id ", received_snapshot_id
             client.send(json.dumps({'type': "MARKER", 'snapshot_id': received_snapshot_id}))
 
@@ -73,7 +76,7 @@ def client_thread(ip, port, sendername, receivername):
     data = json.dumps({'name': sendername, 'type': 'CON'})
     toClient.send(data)
     while 1:
-        time.sleep(10)
+        time.sleep(5)
         dsObject.transfer_money(toClient)
 
 
@@ -99,10 +102,13 @@ def server_thread(conn):
                     elif k in dsObject.channels_state:
                         dsObject.channels_state[k] += [data]
                         print "Adding intermediate channel state to list of channel states "
+                        print dsObject.channels_state
                     else:
                         dsObject.channels_state[k] = [data]
                         print "Adding first channel state to list of channel states "
+                        dsObject.channels_state
         elif parsed_data['type'] == 'MARKER':
+            time.sleep(5)
             print "Marker received from ", socket_name_dict[conn]
             print 'Connection object is ***', conn
             received_snapshot_id = parsed_data['snapshot_id']
