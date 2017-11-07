@@ -30,7 +30,7 @@ class DistributedSnapshot:
         amount = randint(0, 50)
         probability = random()
         # print "Probability value is ", probability
-        if probability <= 0.2:
+        if probability <= 0.3:
             #time.sleep(10)
             connection.send(json.dumps({"amount": amount, "type": "TRANSFER"}))
             print self.name, "sending $$", str(amount), " to ", socket_name_dict[connection]
@@ -50,6 +50,7 @@ class DistributedSnapshot:
         # saving local state
         self.local_state = self.money
         self.seen_snapshot_ids.append(self.snapshot_id)
+        self.record_channel_flag[self.snapshot_id] = 1
         print "CHECKING SEEN SNAPSHOT IDS", self.seen_snapshot_ids
         for client in array_client:
             #time.sleep(25)
@@ -61,7 +62,7 @@ class DistributedSnapshot:
         print "local saved state is", self.local_state
         for client in array_client:
             #time.sleep(25)
-            #print "Sending marker AFTER SAVING LOCAL STATE TO ", client, "with snapshot id ", received_snapshot_id
+            print "Sending marker AFTER SAVING LOCAL STATE TO ", socket_name_dict[client], "with snapshot id ", received_snapshot_id
             client.send(json.dumps({'type': "MARKER", 'snapshot_id': received_snapshot_id}))
 
 
@@ -94,26 +95,29 @@ def server_thread(conn):
         #parsed_data = json.loads(data)
         #print data
         for message in data:
+            if not message:
+                continue
             if message == '\n':
                 continue
+            print "checking for message--",message,"CHECK"
             parsed_data = json.loads(message)
             if 'name' in parsed_data:
                 print "checking for message", message, " from ",parsed_data['name']
-        #print parsed_data
+            #print parsed_data
             if parsed_data['type'] == 'CON':
                 socket_name_dict[conn] = parsed_data['name']
             elif parsed_data['type'] == 'TRANSFER':
-                dsObject.receive_money(json.loads(message), conn)
+                dsObject.receive_money(parsed_data, conn)
                 for k, v in dsObject.record_channel_flag.iteritems():
                     if v == 1:
                         if k in stop_record and stop_record[k] == 1:
-                            print "Have stopped recording "
+                            print "Have stopped recording for this channel "
                         elif k in dsObject.channels_state:
-                            dsObject.channels_state[k] += [message]
+                            dsObject.channels_state[k] += [parsed_data]
                             print "Adding intermediate channel state to list of channel states "
                             print dsObject.channels_state
                         else:
-                            dsObject.channels_state[k] = [message]
+                            dsObject.channels_state[k] = [parsed_data]
                             print "Adding first channel state to list of channel states ",dsObject.channels_state
             elif parsed_data['type'] == 'MARKER':
                 time.sleep(10)
@@ -122,31 +126,47 @@ def server_thread(conn):
                 received_snapshot_id = parsed_data['snapshot_id']
                 if received_snapshot_id in dsObject.seen_snapshot_ids:
                     print "Received snapshot id is in seen snapshot ids"
-        # receiving marker from other input channels
+                    print " snap shot marker value is",dsObject.snapshot_marker_tracker
+                    # receiving marker from other input channels
                     if received_snapshot_id in dsObject.snapshot_marker_tracker:
-        #3/2 --- CHECK
+                    #3/2 --- CHECK
                         print "Value of snapshot marker tracker ", dsObject.snapshot_marker_tracker[received_snapshot_id]
 
                         if dsObject.snapshot_marker_tracker[received_snapshot_id] == 2:
                             print "End of snapshot",received_snapshot_id
                             print "local state of the process is",dsObject.local_state
-                            print " channel state of the process is",dsObject.channels_state
+                            #print "checking for channel state",dsObject.channels_state
+                            snapshot_channel_state=[]
+                            if received_snapshot_id in dsObject.channels_state:
+                                snapshot_channel_state=dsObject.channels_state[received_snapshot_id]
+                                print " channel state of the process is", snapshot_channel_state
+                            else:
+                                print "channel state is empty"
+                            finalvalue_snapshot=0
+                            for state in snapshot_channel_state:
+                                finalvalue_snapshot+=state['amount']
+                            total_amount=dsObject.local_state+finalvalue_snapshot
+                            print "total amount after snapshot ending algorithm is",total_amount
+                            dsObject.record_channel_flag[received_snapshot_id] = 0
 
                         else:
                             print "Marker received from intermediate channel -- stopping recording for this channel",socket_name_dict[conn]
                             stop_record[received_snapshot_id] = 1
                             dsObject.snapshot_marker_tracker[received_snapshot_id] += 1
-                    else:
+                    else: #for initiator , receipt of the first marker executes the below
                         dsObject.snapshot_marker_tracker[received_snapshot_id] = 1
+                        stop_record[received_snapshot_id] = 1
                 else:
-        # receiving marker for first time from initiator
+                    # receiving marker for first time from initiator
                     print "Received snapshot id is NOT in seen snapshot ids, SEEING FOR FIRST TIME"
                     dsObject.seen_snapshot_ids.append(received_snapshot_id)
                     dsObject.snapshot_marker_tracker[received_snapshot_id] = 1
-        #  record its local state
+                    #  record its local state
                     dsObject.local_state_process(received_snapshot_id)
-        # 2 send markers on all outgoing channels
+                    # 2 send markers on all outgoing channels
                     dsObject.record_channel_flag[received_snapshot_id] = 1
+                    #to prevent messages from the snapshot initiator being added in channel state
+                    stop_record[received_snapshot_id] = 1
 
 
 def get_input_from_user():
@@ -156,7 +176,7 @@ def get_input_from_user():
     while True:
         for input in read_sockets:
             message = sys.stdin.readline()
-            if message == "snapshot\n":
+            if message == "sn\n":
                 dsObject.snapshot_algorithm()
 
 
