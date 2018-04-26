@@ -7,3 +7,4 @@ The purpose of this snapshot is that states of the client can be retrieved in ca
 The application was implemented in Python
 
 The config.json file contains the data center's details namely IP and port number
+The clientprog.py file has the logic for establing connection between the cllient and server and then perform snapshot algorithm
